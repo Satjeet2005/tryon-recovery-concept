@@ -1,5 +1,7 @@
 import { NextRequest } from 'next/server';
 
+export const dynamic = 'force-dynamic';
+
 const OUTFITS = [
   { id: 'outfit-1', name: 'Oversized Streetwear Look', style: 'Streetwear', color: '#1a1a2e', secondaryColor: '#e94560' },
   { id: 'outfit-2', name: 'Minimal Linen Set', style: 'Minimal', color: '#f5f0eb', secondaryColor: '#8b7355' },
