@@ -178,22 +178,11 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  if (!shouldSucceed && failureCode) {
-    const failureReason = {
-      ...FAILURE_REASONS[failureCode],
-      isSimulatedDemoFailure: true,
-    };
-    return Response.json({
-      success: false,
-      failure: failureReason,
-    });
-  }
-
   // Filter outfits by rejected styles
   const validOutfits = DEMO_OUTFITS.filter(o => !rejectedStyles.includes(o.style.toLowerCase()));
 
   // Phase 4: Handle exhausted recommendation pool
-  if (validOutfits.length === 0) {
+  if (validOutfits.length === 0 && shouldSucceed) {
     return Response.json({
       success: false,
       exhausted: true,
@@ -205,29 +194,29 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  let candidates = validOutfits;
+  let candidates = validOutfits.length > 0 ? validOutfits : DEMO_OUTFITS;
 
   if (outfitMode === 'similar') {
     // Prefer outfits matching preferredStyle, then currentStyle
-    const preferredMatches = validOutfits.filter(o => o.style.toLowerCase() === preferredStyle);
+    const preferredMatches = candidates.filter(o => o.style.toLowerCase() === preferredStyle);
     if (preferredMatches.length > 0) {
       candidates = preferredMatches;
     } else {
-      const currentMatches = validOutfits.filter(o => o.style.toLowerCase() === currentStyle);
+      const currentMatches = candidates.filter(o => o.style.toLowerCase() === currentStyle);
       if (currentMatches.length > 0) {
         candidates = currentMatches;
       }
     }
   } else if (outfitMode === 'different') {
     // Exclude current style
-    const differentMatches = validOutfits.filter(o => o.style.toLowerCase() !== currentStyle);
+    const differentMatches = candidates.filter(o => o.style.toLowerCase() !== currentStyle);
     if (differentMatches.length > 0) {
       const preferredDifferent = differentMatches.filter(o => o.style.toLowerCase() === preferredStyle);
       candidates = preferredDifferent.length > 0 ? preferredDifferent : differentMatches;
     }
   } else {
     // Default mode: prefer preferredStyle if valid matches exist
-    const preferredMatches = validOutfits.filter(o => o.style.toLowerCase() === preferredStyle);
+    const preferredMatches = candidates.filter(o => o.style.toLowerCase() === preferredStyle);
     if (preferredMatches.length > 0) {
       candidates = preferredMatches;
     }
@@ -243,6 +232,20 @@ export async function POST(request: NextRequest) {
 
   counter++;
   const selectedOutfit = candidates[counter % candidates.length];
+
+  if (!shouldSucceed && failureCode) {
+    const failureReason = {
+      ...FAILURE_REASONS[failureCode],
+      isSimulatedDemoFailure: true,
+    };
+    // Include the outfit that was being fitted so the UI can show what failed.
+    const attempted = ['NETWORK_ERROR', 'TIMEOUT'].includes(failureCode) ? undefined : selectedOutfit;
+    return Response.json({
+      success: false,
+      failure: failureReason,
+      ...(attempted ? { outfit: attempted } : {}),
+    });
+  }
 
   return Response.json({
     success: true,

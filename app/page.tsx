@@ -116,27 +116,6 @@ export default function TryOnFlow() {
     };
   }, [clearAllTimers]);
 
-  // Restore flow state safely on mount if present
-  useEffect(() => {
-    try {
-      const savedFlow = sessionStorage.getItem('demo_flow_state');
-      if (savedFlow === 'upload' || savedFlow === 'success' || savedFlow === 'failure') {
-        // keep restored flow state if compatible
-      }
-    } catch {
-      // ignore
-    }
-  }, []);
-
-  // Sync current flowState to sessionStorage
-  useEffect(() => {
-    try {
-      sessionStorage.setItem('demo_flow_state', flowState);
-    } catch {
-      // ignore
-    }
-  }, [flowState]);
-
   // Handle file selection & client-side evaluation
   const handleFileSelect = useCallback(async (file: File, preview: string) => {
     setUploadError(null);
@@ -147,7 +126,7 @@ export default function TryOnFlow() {
     setAnalysisResult(null);
     setUploadTipHighlight(null);
     
-    trackEvent('upload_started', { fileName: file.name, fileSize: file.size });
+    trackEvent('upload_started', { fileSize: file.size });
     
     const result = await validateImage(file);
     setIsValidating(false);
@@ -162,7 +141,6 @@ export default function TryOnFlow() {
         setAnalysisResult(result.analysis);
       }
       trackEvent('upload_validated', { 
-        fileName: file.name,
         brightnessScore: result.analysis?.brightness.score,
         isLandscape: result.analysis?.aspectRatio.isLandscape
       });
@@ -183,6 +161,7 @@ export default function TryOnFlow() {
       abortControllerRef.current = null;
     }
     clearAllTimers();
+    requestIdRef.current++; // invalidate any in-flight response
 
     setProgress(0);
     setFlowState('upload');
@@ -253,7 +232,7 @@ export default function TryOnFlow() {
         headers: { 'Content-Type': 'application/json' },
         signal: controller.signal,
         body: JSON.stringify({
-          attempt: currentAttempt,
+          attempt: Math.min(currentAttempt, 20),
           outfitMode: mode,
           currentStyle: currentOutfit?.style || 'Streetwear',
           currentOutfitId: currentOutfit?.id,
@@ -298,10 +277,13 @@ export default function TryOnFlow() {
         });
         setFlowState('failure');
         trackEvent('generation_failed', { reason: 'NO_RECOMMENDATION' }, { attempt: currentAttempt, generationId });
-      } else {
+      } else if (data.failure) {
+        if (data.outfit) setCurrentOutfit(data.outfit);
         setFailure(data.failure);
         setFlowState('failure');
         trackEvent('generation_failed', { reason: data.failure.code }, { attempt: currentAttempt, generationId });
+      } else {
+        throw new Error(data?.error?.message || 'Unexpected response');
       }
     } catch (err: unknown) {
       if ((err as Error)?.name === 'AbortError') {
@@ -333,6 +315,17 @@ export default function TryOnFlow() {
     startGeneration('default', targetAttempt);
   }, [startGeneration]);
 
+  const resetUploadForRecovery = useCallback(() => {
+    if (previewUrl) {
+      try { URL.revokeObjectURL(previewUrl); } catch { /* ignore */ }
+    }
+    setSelectedFile(null);
+    setPreviewUrl(null);
+    setIsValid(false);
+    setUploadError(null);
+    setAnalysisResult(null);
+  }, [previewUrl]);
+
   // Handle Cause-Specific Recovery Actions
   const handleRecoveryAction = useCallback((action: RecoveryAction) => {
     if (isNavigatingRecoveryRef.current || flowState === 'generating') return;
@@ -345,6 +338,7 @@ export default function TryOnFlow() {
       case 'upload_brighter':
         trackEvent('recovery_upload_brighter_clicked', {}, { attempt: nextAttempt });
         setUploadTipHighlight('💡 Tip: Please select or upload a photo with brighter, even lighting.');
+        resetUploadForRecovery();
         setFlowState('upload');
         setNavigatingRecovery(false);
         break;
@@ -352,6 +346,7 @@ export default function TryOnFlow() {
       case 'upload_full_body':
         trackEvent('recovery_upload_full_body_clicked', {}, { attempt: nextAttempt });
         setUploadTipHighlight('💡 Tip: Please select a photo where your full body (head to toe) is visible.');
+        resetUploadForRecovery();
         setFlowState('upload');
         setNavigatingRecovery(false);
         break;
@@ -359,6 +354,7 @@ export default function TryOnFlow() {
       case 'upload_solo':
         trackEvent('recovery_upload_solo_clicked', {}, { attempt: nextAttempt });
         setUploadTipHighlight('💡 Tip: Please select a photo featuring only yourself.');
+        resetUploadForRecovery();
         setFlowState('upload');
         setNavigatingRecovery(false);
         break;
@@ -369,14 +365,14 @@ export default function TryOnFlow() {
         break;
 
       case 'similar_style':
-        trackEvent('similar_style_selected', { style: currentOutfit?.style || 'Streetwear' }, { attempt: nextAttempt });
+        trackEvent('similar_style_selected', { style: currentOutfit?.style ?? 'none' }, { attempt: nextAttempt });
         startGeneration('similar', nextAttempt);
         break;
 
       case 'not_my_style': {
-        const style = currentOutfit?.style || 'Streetwear';
-        trackEvent('style_rejected', { style }, { attempt: nextAttempt });
-        rejectStyle(style);
+        const style = currentOutfit?.style;
+        trackEvent('style_rejected', { style: style ?? 'none' }, { attempt: nextAttempt });
+        if (style) rejectStyle(style);
         showToast("Got it — dialling back that style.");
         if (pendingRecoveryTimerRef.current) clearTimeout(pendingRecoveryTimerRef.current);
         pendingRecoveryTimerRef.current = setTimeout(() => {
@@ -392,7 +388,7 @@ export default function TryOnFlow() {
         startGeneration('default', nextAttempt);
         break;
     }
-  }, [flowState, updateAttempt, currentOutfit, startGeneration, showToast, setNavigatingRecovery]);
+  }, [flowState, updateAttempt, currentOutfit, startGeneration, showToast, setNavigatingRecovery, resetUploadForRecovery]);
 
   // Handle taste feedback
   const handleTasteFeedback = useCallback((feedback: TasteFeedback) => {
@@ -475,7 +471,7 @@ export default function TryOnFlow() {
             <h1 className="text-base font-bold text-foreground flex items-center gap-2">
               Try-On Recovery & Taste Loop
             </h1>
-            <p className="text-xs text-muted-foreground">Flickd Product Concept Prototype</p>
+            <p className="text-xs text-muted-foreground">Independent product concept · not affiliated with any company</p>
           </div>
 
           <div className="flex items-center gap-3">
@@ -642,12 +638,12 @@ export default function TryOnFlow() {
                 </p>
               </div>
 
-              <FailureCard failure={failure} />
+              <FailureCard failure={failure} outfit={currentOutfit} />
 
               <RecoveryActions
                 failure={failure}
                 onAction={handleRecoveryAction}
-                currentStyle={currentOutfit?.style || 'Streetwear'}
+                currentStyle={currentOutfit?.style}
                 isLoading={isNavigatingRecovery}
               />
 

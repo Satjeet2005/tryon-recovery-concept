@@ -6,7 +6,7 @@ import type { RecoveryAction, FailureReason } from '@/lib/types';
 interface RecoveryActionsProps {
   failure: FailureReason;
   onAction: (action: RecoveryAction) => void;
-  currentStyle: string;
+  currentStyle?: string;
   isLoading?: boolean;
 }
 
@@ -102,13 +102,13 @@ export function RecoveryActions({ failure, onAction, currentStyle, isLoading = f
             onClick={() => onAction(action)}
             {...commonProps}
             className="flex flex-col items-center justify-center p-4 bg-card border border-card-border text-foreground rounded-xl hover:bg-muted/10 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-accent"
-            aria-label={`Try another ${currentStyle} look`}
+            aria-label={currentStyle ? `Try another ${currentStyle} look` : 'Try another look in a similar style'}
           >
             <svg className="w-5 h-5 mb-2 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
             </svg>
             <span className="font-semibold text-sm">Similar Style</span>
-            <span className="text-xs text-muted-foreground mt-1 text-center">More {currentStyle} looks</span>
+            <span className="text-xs text-muted-foreground mt-1 text-center">{currentStyle ? `More ${currentStyle} looks` : 'More like this'}</span>
           </button>
         );
 

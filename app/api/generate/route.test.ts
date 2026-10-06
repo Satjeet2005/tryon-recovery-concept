@@ -3,6 +3,15 @@ import { POST } from './route';
 import { NextRequest } from 'next/server';
 
 describe('Mock Generation API Route', () => {
+  it('includes the attempted outfit in content failures, but not in system failures', async () => {
+    const mk = (b: object) => new NextRequest('http://localhost:3000/api/generate', { method: 'POST', body: JSON.stringify(b) });
+    const fit = await (await POST(mk({ attempt: 1, brightnessScore: 200 }))).json();
+    expect(fit.failure.code).toBe('OUTFIT_FIT_FAILURE');
+    expect(fit.outfit?.style).toBeTruthy();
+    const net = await (await POST(mk({ attempt: 1, forceMode: 'NETWORK_ERROR' }))).json();
+    expect(net.outfit).toBeUndefined();
+  });
+
   it('fails on attempt 1 with LOW_LIGHT when brightness score is below 55', async () => {
     const req = new NextRequest('http://localhost:3000/api/generate', {
       method: 'POST',

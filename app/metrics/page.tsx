@@ -124,7 +124,7 @@ export default function MetricsPage() {
             <MetricCard 
               label="Recovery Success Rate" 
               value={liveFunnel.recoveryRate} 
-              sublabel="Successful recoveries / 1st attempt failures" 
+              sublabel="Simulated: the demo API always succeeds on attempt 2, so this is not real-user data" 
               highlight={true}
             />
           </div>

@@ -1,13 +1,14 @@
 'use client';
 
 import React from 'react';
-import { FailureReason } from '@/lib/types';
+import { FailureReason, Outfit } from '@/lib/types';
 
 interface FailureCardProps {
   failure: FailureReason;
+  outfit?: Outfit | null;
 }
 
-export function FailureCard({ failure }: FailureCardProps) {
+export function FailureCard({ failure, outfit }: FailureCardProps) {
   const categoryColors = {
     input: 'bg-amber-100 text-amber-800 border-amber-300',
     content: 'bg-indigo-100 text-indigo-800 border-indigo-300',
@@ -19,7 +20,7 @@ export function FailureCard({ failure }: FailureCardProps) {
       {/* Top badges */}
       <div className="flex items-center justify-between gap-2 flex-wrap text-xs">
         <span className={`px-2.5 py-0.5 rounded-full font-medium border ${categoryColors[failure.category] || categoryColors.system}`}>
-          Category: {failure.category.toUpperCase()}
+          Issue type: {failure.category}
         </span>
         {failure.isSimulatedDemoFailure && (
           <span className="px-2.5 py-0.5 rounded-full bg-info-light text-info font-medium border border-info/30 text-[11px]">
@@ -37,6 +38,11 @@ export function FailureCard({ failure }: FailureCardProps) {
         <div className="space-y-1">
           <h3 className="text-base font-semibold text-foreground">{failure.title || "Try-On Generation Issue"}</h3>
           <p className="text-xs text-muted-foreground leading-relaxed">{failure.description}</p>
+          {outfit && failure.category !== 'system' && (
+            <p className="text-[11px] text-muted-foreground pt-1">
+              While fitting: <strong className="text-foreground">{outfit.name}</strong> &middot; {outfit.style}
+            </p>
+          )}
           {failure.isSimulatedDemoFailure && (
             <p className="text-[11px] text-info/90 pt-1 italic">
               Note: In Demo Mode, automatic failure classification is derived from client-side image heuristics (brightness score &amp; framing ratio) to demonstrate recovery pathways.

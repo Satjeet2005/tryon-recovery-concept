@@ -9,7 +9,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Try-On Recovery & Taste Loop Concept | Flickd Product Prototype",
+  title: "Try-On Recovery & Taste Loop Concept | Product Prototype",
   description:
     "An independent product concept exploring cause-specific failure diagnosis, recovery pathways, and local taste feedback loops for AI-powered virtual try-on experiences.",
   keywords: ["virtual try-on", "product design", "failure recovery", "taste loop", "fashion AI", "UX prototype"],
