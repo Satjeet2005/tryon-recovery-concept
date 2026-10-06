@@ -1,36 +1,93 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Flickd — Try-On Recovery + Taste Loop Prototype
 
-## Getting Started
+An independent product concept and interactive prototype demonstrating how AI virtual try-on failures can be converted into high-intent re-engagement pathways and personalized taste feedback loops.
 
-First, run the development server:
+---
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## 🎯 Problem Statement
+
+In AI-powered fashion virtual try-ons, initial avatar generation frequently fails due to suboptimal user photos (low lighting, incomplete framing, multiple people) or garment fitting constraints. In conventional consumer UX, these failures present a generic *"Something went wrong — Try Again"* dead end, causing heavy user drop-off.
+
+---
+
+## 💡 Product Hypothesis
+
+> **Hypothesis:** Providing **cause-specific diagnosis and actionable recovery choices** (e.g., *"Upload a brighter photo"* or *"Try a different outfit"*) significantly increases 2nd-attempt re-engagement and successful try-on recovery compared to generic retries, while capturing valuable user input and taste intent signals.
+
+---
+
+## 🔄 End-to-End Prototype Flow
+
+```
+1. Upload photo  ──>  2. Client-side evaluation (Format/Size/Resolution & Brightness/Aspect Ratio Signals)
+       │
+3. Try-On Generation (Attempt #1)  ──>  4. Cause-Specific Failure Diagnosis (e.g., LOW_LIGHT / FULL_BODY_NOT_VISIBLE)
+       │
+5. Cause-Specific Recovery Action  ──>  6. Recovered Try-On Result (Attempt #2+)
+       │
+7. Taste Feedback Loop (More/Less/Save)  ──>  8. Next Personalized Recommendation & Metrics Audit
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 📊 Key Prototype Metrics
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Every metric explicitly defines its calculation denominator:
 
-## Learn More
+- **First-Try Success Rate:** `successful 1st attempts / total session attempts`
+- **Failed → Recovered Rate:** `failed attempts eventually recovered / total 1st-try failures`
+- **Second-Try Engagement:** `sessions initiating 2nd attempt / total 1st-try failures`
+- **Recovery Action Efficiency:** `successful recoveries per action type` (e.g. Upload Brighter vs Different Outfit)
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 🔒 Privacy & Architecture Guarantees
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- **Browser-Only Photo Processing:** User photos stay 100% inside the client browser. No raw images are uploaded to external cloud servers or third-party AI models.
+- **Client-Side Advisory Signals:** HTML Canvas relative luminance sampling provides immediate brightness feedback without heavy computer vision dependencies.
+- **Deterministic Demo Execution:** Intentional 1st-attempt failure simulation ensures consistent, reproducible demo walkthroughs.
 
-## Deploy on Vercel
+---
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## 🛠️ Developer & Demo Controls
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Click **"⚙️ Dev Controls"** in the top navigation header to open the live simulation panel:
+- **Force Outcome Modes:** `Auto`, `Force Success`, `LOW_LIGHT`, `FULL_BODY_NOT_VISIBLE`, `MULTIPLE_PEOPLE`, `OUTFIT_FIT_FAILURE`, `NETWORK_ERROR`, `TIMEOUT`.
+- **Latency Controls:** Fast (800ms), Normal (3.5s), Slow (7s).
+
+---
+
+## ⚠️ Important Prototype Limitations
+
+1. **Mocked AI Generation:** Uses deterministic counter-based garment rendering for demonstration purposes.
+2. **Local Session Scope:** State is preserved via `sessionStorage`. No persistent database or authentication is attached.
+3. **Illustrative Baseline Metrics:** Seeded dataset numbers represent baseline targets for hypothesis design.
+
+---
+
+## 🧪 What I Would Test First in Production
+
+1. **A/B Test Variant:** Compare 1st-try failure drop-off between control group (Generic *"Try Again"*) vs variant group (Cause-Specific Recovery options).
+2. **Intent Capture Rate:** Measure how many users who decline an outfit specify a taste preference signal versus bouncing.
+
+---
+
+## 🚀 Local Development & Testing
+
+```bash
+# Install dependencies
+npm install
+
+# Run Vitest unit & integration test suite
+npm run test
+
+# Run ESLint check
+npm run lint
+
+# Run Next.js local development server
+npm run dev
+
+# Production build test
+npm run build
+```
+

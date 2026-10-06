@@ -6,14 +6,17 @@ import type { TasteFeedback as TasteFeedbackType } from '@/lib/types';
 interface TasteFeedbackProps {
   onFeedback: (feedback: TasteFeedbackType) => void;
   toastMessage: string | null;
+  onNextLook?: () => void;
+  onResetTaste?: () => void;
 }
 
-export function TasteFeedback({ onFeedback, toastMessage }: TasteFeedbackProps) {
+export function TasteFeedback({ onFeedback, toastMessage, onNextLook, onResetTaste }: TasteFeedbackProps) {
   return (
-    <div className="w-full max-w-md mx-auto mt-6 flex flex-col items-center">
+    <div className="w-full max-w-md mx-auto mt-6 flex flex-col items-center space-y-4">
       <div className="flex items-center justify-center gap-3 w-full">
         {/* Less like this */}
         <button 
+          type="button"
           onClick={() => onFeedback('less_like_this')}
           className="flex flex-col items-center gap-1.5 flex-1 py-3 px-4 rounded-xl border border-card-border bg-card text-muted-foreground hover:bg-error-light hover:text-error hover:border-error/20 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           aria-label="Less like this"
@@ -26,6 +29,7 @@ export function TasteFeedback({ onFeedback, toastMessage }: TasteFeedbackProps) 
 
         {/* More like this */}
         <button 
+          type="button"
           onClick={() => onFeedback('more_like_this')}
           className="flex flex-col items-center gap-1.5 flex-1 py-3 px-4 rounded-xl border-2 border-success/20 bg-success-light text-success hover:bg-success hover:text-white transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-success shadow-sm"
           aria-label="More like this"
@@ -38,9 +42,10 @@ export function TasteFeedback({ onFeedback, toastMessage }: TasteFeedbackProps) 
 
         {/* Save */}
         <button 
+          type="button"
           onClick={() => onFeedback('save')}
           className="flex flex-col items-center gap-1.5 flex-1 py-3 px-4 rounded-xl border border-card-border bg-card text-muted-foreground hover:bg-accent hover:text-white transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-          aria-label="Save"
+          aria-label="Save look"
         >
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
@@ -49,12 +54,41 @@ export function TasteFeedback({ onFeedback, toastMessage }: TasteFeedbackProps) 
         </button>
       </div>
 
+      {/* Show me another look CTA */}
+      {onNextLook && (
+        <button
+          type="button"
+          onClick={onNextLook}
+          className="w-full py-3 px-4 rounded-xl bg-accent text-white font-semibold text-sm hover:bg-accent-hover active:scale-[0.98] transition-all shadow-sm flex items-center justify-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+        >
+          <span>Show me another look</span>
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+          </svg>
+        </button>
+      )}
+
+      {/* Toast & Reset controls */}
+      <div className="flex items-center justify-between w-full pt-2 text-xs">
+        {onResetTaste && (
+          <button
+            type="button"
+            onClick={onResetTaste}
+            className="text-muted-foreground hover:text-foreground text-[11px] underline underline-offset-2 transition-colors"
+          >
+            Reset taste preferences
+          </button>
+        )}
+        <span className="text-[10px] text-muted ml-auto">Local preference engine</span>
+      </div>
+
       {/* Toast Message */}
       {toastMessage && (
-        <div className="mt-5 px-5 py-2.5 bg-foreground text-background text-sm rounded-full shadow-lg animate-toast-enter">
+        <div className="mt-2 px-5 py-2.5 bg-foreground text-background text-sm rounded-full shadow-lg animate-toast-enter" role="status" aria-live="polite">
           {toastMessage}
         </div>
       )}
     </div>
   );
 }
+

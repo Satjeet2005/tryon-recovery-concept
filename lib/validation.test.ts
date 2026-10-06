@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { validateFileType, validateFileSize, validateImageDimensions } from './validation';
+import { validateFileType, validateFileSize, validateImageDimensions, analyzeAspectRatio } from './validation';
 
-describe('Validation Logic', () => {
+describe('Validation Logic & Image Signals', () => {
   describe('validateFileType', () => {
     it('accepts JPG, PNG, and WebP files', () => {
       const jpg = new File([], 'test.jpg', { type: 'image/jpeg' });
@@ -22,6 +22,13 @@ describe('Validation Logic', () => {
       expect(resTxt.error).toContain('JPG, PNG, or WebP');
 
       expect(validateFileType(pdf).valid).toBe(false);
+    });
+
+    it('surfaces explicit friendly error message when HEIC file is selected', () => {
+      const heic = new File([], 'photo.heic', { type: 'image/heic' });
+      const res = validateFileType(heic);
+      expect(res.valid).toBe(false);
+      expect(res.error).toContain("HEIC photos aren't supported");
     });
   });
 
@@ -57,4 +64,20 @@ describe('Validation Logic', () => {
       expect(resHeight.error).toContain('too small');
     });
   });
+
+  describe('analyzeAspectRatio', () => {
+    it('flags landscape-oriented photos with framing warning', () => {
+      const landscape = analyzeAspectRatio(1920, 1080);
+      expect(landscape.isLandscape).toBe(true);
+      expect(landscape.status).toBe('warning');
+      expect(landscape.message).toContain('Portrait-oriented photos');
+    });
+
+    it('passes portrait-oriented photos without warning', () => {
+      const portrait = analyzeAspectRatio(1080, 1920);
+      expect(portrait.isLandscape).toBe(false);
+      expect(portrait.status).toBe('pass');
+    });
+  });
 });
+

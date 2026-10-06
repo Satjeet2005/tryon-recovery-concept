@@ -3,18 +3,57 @@ import { Outfit, FailureReason, FailureCode } from './types';
 export const FAILURE_REASONS: Record<FailureCode, FailureReason> = {
   LOW_LIGHT: {
     code: 'LOW_LIGHT',
+    category: 'input',
     title: 'Your photo is too dark',
     description: 'Try a brighter photo with your face and full body clearly visible.',
+    primaryAction: 'upload_brighter',
+    allowedActions: ['upload_brighter', 'retry'],
+    requiresUpload: true,
   },
   FULL_BODY_NOT_VISIBLE: {
     code: 'FULL_BODY_NOT_VISIBLE',
-    title: "We can't see your full outfit area",
-    description: 'Try a full-body photo with your feet and shoulders visible.',
+    category: 'input',
+    title: "We couldn't see your full body",
+    description: 'Try a full-body photo with your feet and shoulders clearly visible.',
+    primaryAction: 'upload_full_body',
+    allowedActions: ['upload_full_body', 'retry'],
+    requiresUpload: true,
   },
-  IMAGE_QUALITY: {
-    code: 'IMAGE_QUALITY',
-    title: 'We need a clearer photo',
-    description: 'Try a sharper image with less blur and better lighting.',
+  MULTIPLE_PEOPLE: {
+    code: 'MULTIPLE_PEOPLE',
+    category: 'input',
+    title: 'We found more than one person',
+    description: 'Please upload a photo featuring only yourself for an accurate try-on fit.',
+    primaryAction: 'upload_solo',
+    allowedActions: ['upload_solo', 'retry'],
+    requiresUpload: true,
+  },
+  OUTFIT_FIT_FAILURE: {
+    code: 'OUTFIT_FIT_FAILURE',
+    category: 'content',
+    title: "This outfit didn't fit your avatar",
+    description: "The digital garment couldn't align cleanly. Try an alternative outfit or style.",
+    primaryAction: 'different_outfit',
+    allowedActions: ['different_outfit', 'similar_style', 'not_my_style'],
+    requiresUpload: false,
+  },
+  NETWORK_ERROR: {
+    code: 'NETWORK_ERROR',
+    category: 'system',
+    title: "We couldn't reach the try-on service",
+    description: 'A network glitch interrupted generation. You can safely try again.',
+    primaryAction: 'retry',
+    allowedActions: ['retry'],
+    requiresUpload: false,
+  },
+  TIMEOUT: {
+    code: 'TIMEOUT',
+    category: 'system',
+    title: 'The request timed out',
+    description: 'Generation took longer than expected. You can try submitting again.',
+    primaryAction: 'retry',
+    allowedActions: ['retry'],
+    requiresUpload: false,
   },
 };
 
@@ -70,27 +109,49 @@ export const DEMO_OUTFITS: Outfit[] = [
   },
 ];
 
-// Demo metric data - clearly illustrative, not real
+// Demo metric data - clearly illustrative baseline dataset, not real production tracking
 export const DEMO_METRICS = {
+  datasetName: 'Illustrative Baseline Dataset (100 Simulated Sessions)',
   funnel: {
-    uploads: 100,
-    firstTryOnSuccess: 72,
-    secondTryOn: 41,
+    totalSessions: 100, // Total sessions initiating try-on
+    firstTryOnSuccess: 72, // 72 of 100 sessions succeeded on 1st try (Control Group)
+    failedGenerations: 28, // 28 of 100 sessions failed on 1st try
+    secondTryOn: 24, // 24 of 28 failed sessions attempted a 2nd try (85.7% 2nd-try rate)
+    recoveredSuccess: 19, // 19 of 28 failed sessions achieved successful recovery (67.9% recovery rate)
   },
-  recovery: {
-    failedGenerations: 28,
-    successfulRetries: 19,
-    recoveryRate: 0.68,
-  },
-  recoveryActions: {
-    tryAgain: 0.42,
-    differentOutfit: 0.25,
-    similarStyle: 0.18,
-    notMyStyle: 0.15,
-  },
+  byFailureReason: [
+    { code: 'LOW_LIGHT', label: 'Photo Too Dark', count: 12, recovered: 9, rate: 0.75 },
+    { code: 'FULL_BODY_NOT_VISIBLE', label: 'Incomplete Body Framing', count: 8, recovered: 5, rate: 0.625 },
+    { code: 'MULTIPLE_PEOPLE', label: 'Multiple People Detected', count: 4, recovered: 3, rate: 0.75 },
+    { code: 'OUTFIT_FIT_FAILURE', label: 'Outfit Alignment Failure', count: 3, recovered: 2, rate: 0.667 },
+    { code: 'NETWORK_ERROR', label: 'System Timeout / Error', count: 1, recovered: 0, rate: 0.0 },
+  ],
+  byRecoveryAction: [
+    { action: 'upload_brighter', label: 'Upload Brighter Photo', selectedCount: 9, successCount: 8, successRate: 0.889 },
+    { action: 'upload_full_body', label: 'Upload Full-Body Photo', selectedCount: 6, successCount: 5, successRate: 0.833 },
+    { action: 'different_outfit', label: 'Try Different Outfit', selectedCount: 4, successCount: 3, successRate: 0.75 },
+    { action: 'retry', label: 'Generic Retry', selectedCount: 5, successCount: 3, successRate: 0.60 },
+  ],
   tasteFeedback: {
-    moreLikeThis: 0.54,
-    lessLikeThis: 0.28,
-    saved: 0.18,
+    totalGiven: 65,
+    moreLikeThis: 35, // 53.8%
+    lessLikeThis: 18, // 27.7%
+    saved: 12, // 18.5%
+  },
+  hypothesisComparison: {
+    title: 'Product Hypothesis Comparison (Illustrative Baseline)',
+    genericRetry: {
+      label: 'Generic Retry (Control)',
+      secondTryRate: '45%', // 45% of users retry when given generic 'Try Again'
+      recoverySuccessRate: '32%', // 32% of retries succeed without guidance
+      userIntentCaptured: '0%', // No intent or preference signals captured
+    },
+    diagnosedRecovery: {
+      label: 'Diagnosed Recovery (Variant)',
+      secondTryRate: '85.7%', // 24 of 28 users re-engage with cause-specific guidance
+      recoverySuccessRate: '67.9%', // 19 of 28 users recover to successful try-on
+      userIntentCaptured: '78.5%', // Captured specific input/taste preferences
+    },
   },
 };
+
