@@ -78,11 +78,20 @@ export interface TasteState {
   rejectedStyles: string[];
 }
 
+// Analytics event context
+export interface EventContext {
+  sessionId: string;
+  flowId: string;
+  attempt?: number;
+  generationId?: string;
+}
+
 // Analytics event
 export interface AnalyticsEvent {
   id: string;
   event: string;
   timestamp: string;
+  context: EventContext;
   properties: Record<string, unknown>;
 }
 

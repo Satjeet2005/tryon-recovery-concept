@@ -111,6 +111,49 @@ describe('Mock Generation API Route', () => {
     expect(data.outfit.style.toLowerCase()).not.toBe('streetwear');
   });
 
+  it('returns explicit NO_RECOMMENDATION when all styles are rejected', async () => {
+    const allStyles = ['streetwear', 'minimal', 'casual', 'formal', 'bohemian'];
+    const req = new NextRequest('http://localhost:3000/api/generate', {
+      method: 'POST',
+      body: JSON.stringify({ attempt: 2, outfitMode: 'default', rejectedStyles: allStyles }),
+    });
+
+    const res = await POST(req);
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data.success).toBe(false);
+    expect(data.exhausted).toBe(true);
+    expect(data.error.code).toBe('NO_RECOMMENDATION');
+  });
+
+  it('rejects invalid attempt value with 400 status', async () => {
+    const req = new NextRequest('http://localhost:3000/api/generate', {
+      method: 'POST',
+      body: JSON.stringify({ attempt: -1 }),
+    });
+
+    const res = await POST(req);
+    const data = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(data.success).toBe(false);
+    expect(data.error.code).toBe('INVALID_REQUEST');
+  });
+
+  it('rejects invalid latencyMs with 400 status', async () => {
+    const req = new NextRequest('http://localhost:3000/api/generate', {
+      method: 'POST',
+      body: JSON.stringify({ attempt: 1, latencyMs: 999999 }),
+    });
+
+    const res = await POST(req);
+    const data = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(data.error.code).toBe('INVALID_REQUEST');
+  });
+
   it('supports forceMode for MULTIPLE_PEOPLE failure', async () => {
     const req = new NextRequest('http://localhost:3000/api/generate', {
       method: 'POST',

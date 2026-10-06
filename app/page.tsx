@@ -4,7 +4,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import type { FlowState, FailureReason, Outfit, RecoveryAction, TasteFeedback, ImageAnalysisResult, DemoControls } from '@/lib/types';
 import { validateImage } from '@/lib/validation';
-import { trackEvent } from '@/lib/analytics';
+import { trackEvent, startNewFlow } from '@/lib/analytics';
 import { getTaste, updateTasteFromFeedback, rejectStyle, resetTaste, getTopStyle } from '@/lib/taste-state';
 
 import PhotoGuidance from '@/components/upload/PhotoGuidance';
@@ -79,7 +79,16 @@ export default function TryOnFlow() {
   const progressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const generationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingRecoveryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const requestIdRef = useRef<number>(0);
+  const isNavigatingRecoveryRef = useRef<boolean>(false);
+  const [isNavigatingRecovery, setIsNavigatingRecovery] = useState(false);
+
+  const setNavigatingRecovery = useCallback((val: boolean) => {
+    isNavigatingRecoveryRef.current = val;
+    setIsNavigatingRecovery(val);
+  }, []);
   
   // Result state
   const [failure, setFailure] = useState<FailureReason | null>(null);
@@ -88,7 +97,24 @@ export default function TryOnFlow() {
   // Feedback state
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [recommendation, setRecommendation] = useState<string>('');
-  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Central timer cleanup helper
+  const clearAllTimers = useCallback(() => {
+    if (progressTimerRef.current) { clearInterval(progressTimerRef.current); progressTimerRef.current = null; }
+    if (generationTimeoutRef.current) { clearTimeout(generationTimeoutRef.current); generationTimeoutRef.current = null; }
+    if (toastTimerRef.current) { clearTimeout(toastTimerRef.current); toastTimerRef.current = null; }
+    if (pendingRecoveryTimerRef.current) { clearTimeout(pendingRecoveryTimerRef.current); pendingRecoveryTimerRef.current = null; }
+  }, []);
+
+  // Unmount lifecycle cleanup
+  useEffect(() => {
+    return () => {
+      clearAllTimers();
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, [clearAllTimers]);
 
   // Restore flow state safely on mount if present
   useEffect(() => {
@@ -156,20 +182,21 @@ export default function TryOnFlow() {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
-    if (progressTimerRef.current) clearInterval(progressTimerRef.current);
-    if (generationTimeoutRef.current) clearTimeout(generationTimeoutRef.current);
+    clearAllTimers();
 
     setProgress(0);
     setFlowState('upload');
+    setNavigatingRecovery(false);
     showToast('Generation cancelled.');
-    trackEvent('generation_cancelled', { attempt: attemptRef.current });
-  }, [showToast]);
+    trackEvent('generation_cancelled', {}, { attempt: attemptRef.current });
+  }, [clearAllTimers, setNavigatingRecovery, showToast]);
 
   // Start generation with explicit attempt parameter, stale request protection & timeout
   const startGeneration = useCallback(async (
     mode: 'default' | 'different' | 'similar' = 'default',
     explicitAttempt?: number
   ) => {
+    clearAllTimers();
     const currentAttempt = explicitAttempt ?? attemptRef.current;
     
     // Abort any existing in-flight request
@@ -181,16 +208,16 @@ export default function TryOnFlow() {
 
     // Increment request ID token for stale response protection
     const currentRequestId = ++requestIdRef.current;
+    const generationId = `gen_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
 
     setFlowState('generating');
     setProgress(0);
     setFailure(null);
     
-    trackEvent('generation_started', { attempt: currentAttempt, outfitMode: mode, forceMode: demoControls.forceMode });
+    trackEvent('generation_started', { outfitMode: mode, forceMode: demoControls.forceMode }, { attempt: currentAttempt, generationId });
 
     // Animate progress
     let currentProgress = 0;
-    if (progressTimerRef.current) clearInterval(progressTimerRef.current);
     progressTimerRef.current = setInterval(() => {
       currentProgress += Math.random() * 8 + 3;
       if (currentProgress > 92) currentProgress = 92;
@@ -198,11 +225,10 @@ export default function TryOnFlow() {
     }, 350);
 
     // Timeout safeguard (12s timeout)
-    if (generationTimeoutRef.current) clearTimeout(generationTimeoutRef.current);
     generationTimeoutRef.current = setTimeout(() => {
       if (requestIdRef.current === currentRequestId && controller.signal.aborted === false) {
         controller.abort();
-        if (progressTimerRef.current) clearInterval(progressTimerRef.current);
+        clearAllTimers();
         setFailure({
           code: 'TIMEOUT',
           category: 'system',
@@ -213,7 +239,8 @@ export default function TryOnFlow() {
           requiresUpload: false,
         });
         setFlowState('failure');
-        trackEvent('generation_failed', { reason: 'TIMEOUT', attempt: currentAttempt });
+        setNavigatingRecovery(false);
+        trackEvent('generation_failed', { reason: 'TIMEOUT' }, { attempt: currentAttempt, generationId });
       }
     }, 12000);
 
@@ -229,6 +256,7 @@ export default function TryOnFlow() {
           attempt: currentAttempt,
           outfitMode: mode,
           currentStyle: currentOutfit?.style || 'Streetwear',
+          currentOutfitId: currentOutfit?.id,
           preferredStyle: topStyle,
           rejectedStyles: taste.rejectedStyles,
           brightnessScore: analysisResult?.brightness.score,
@@ -241,8 +269,7 @@ export default function TryOnFlow() {
       // Discard stale responses if newer request launched
       if (requestIdRef.current !== currentRequestId) return;
 
-      if (progressTimerRef.current) clearInterval(progressTimerRef.current);
-      if (generationTimeoutRef.current) clearTimeout(generationTimeoutRef.current);
+      clearAllTimers();
       setProgress(100);
 
       const data = await response.json();
@@ -251,16 +278,30 @@ export default function TryOnFlow() {
       await new Promise(r => setTimeout(r, 400));
       if (requestIdRef.current !== currentRequestId) return;
 
+      setNavigatingRecovery(false);
+
       if (data.success) {
         setCurrentOutfit(data.outfit);
         setFlowState('success');
         const tasteState = getTaste();
         setRecommendation(buildRecommendationReason(data.outfit, tasteState));
-        trackEvent('try_on_success', { outfit: data.outfit.name, style: data.outfit.style, attempt: currentAttempt });
+        trackEvent('try_on_success', { outfit: data.outfit.name, style: data.outfit.style }, { attempt: currentAttempt, generationId });
+      } else if (data.exhausted || data.error?.code === 'NO_RECOMMENDATION') {
+        setFailure({
+          code: 'OUTFIT_FIT_FAILURE',
+          category: 'content',
+          title: data.error?.title || 'All styles filtered out',
+          description: data.error?.message || 'You have rejected all available style categories. Reset taste preferences to explore more looks.',
+          primaryAction: 'different_outfit',
+          allowedActions: ['different_outfit'],
+          requiresUpload: false,
+        });
+        setFlowState('failure');
+        trackEvent('generation_failed', { reason: 'NO_RECOMMENDATION' }, { attempt: currentAttempt, generationId });
       } else {
         setFailure(data.failure);
         setFlowState('failure');
-        trackEvent('generation_failed', { reason: data.failure.code, attempt: currentAttempt });
+        trackEvent('generation_failed', { reason: data.failure.code }, { attempt: currentAttempt, generationId });
       }
     } catch (err: unknown) {
       if ((err as Error)?.name === 'AbortError') {
@@ -269,8 +310,8 @@ export default function TryOnFlow() {
       }
       if (requestIdRef.current !== currentRequestId) return;
 
-      if (progressTimerRef.current) clearInterval(progressTimerRef.current);
-      if (generationTimeoutRef.current) clearTimeout(generationTimeoutRef.current);
+      clearAllTimers();
+      setNavigatingRecovery(false);
 
       setFailure({
         code: 'NETWORK_ERROR',
@@ -282,9 +323,9 @@ export default function TryOnFlow() {
         requiresUpload: false,
       });
       setFlowState('failure');
-      trackEvent('generation_failed', { reason: 'NETWORK_ERROR', attempt: currentAttempt });
+      trackEvent('generation_failed', { reason: 'NETWORK_ERROR' }, { attempt: currentAttempt, generationId });
     }
-  }, [analysisResult, currentOutfit, demoControls]);
+  }, [analysisResult, clearAllTimers, currentOutfit, demoControls, setNavigatingRecovery]);
 
   // Handle continue from upload
   const handleContinue = useCallback(() => {
@@ -294,47 +335,52 @@ export default function TryOnFlow() {
 
   // Handle Cause-Specific Recovery Actions
   const handleRecoveryAction = useCallback((action: RecoveryAction) => {
+    if (isNavigatingRecoveryRef.current || flowState === 'generating') return;
+    setNavigatingRecovery(true);
+
     const nextAttempt = attemptRef.current + 1;
     updateAttempt(nextAttempt);
 
     switch (action) {
       case 'upload_brighter':
-        trackEvent('recovery_upload_brighter_clicked', { attempt: nextAttempt });
+        trackEvent('recovery_upload_brighter_clicked', {}, { attempt: nextAttempt });
         setUploadTipHighlight('💡 Tip: Please select or upload a photo with brighter, even lighting.');
         setFlowState('upload');
+        setNavigatingRecovery(false);
         break;
 
       case 'upload_full_body':
-        trackEvent('recovery_upload_full_body_clicked', { attempt: nextAttempt });
+        trackEvent('recovery_upload_full_body_clicked', {}, { attempt: nextAttempt });
         setUploadTipHighlight('💡 Tip: Please select a photo where your full body (head to toe) is visible.');
         setFlowState('upload');
+        setNavigatingRecovery(false);
         break;
 
       case 'upload_solo':
-        trackEvent('recovery_upload_solo_clicked', { attempt: nextAttempt });
+        trackEvent('recovery_upload_solo_clicked', {}, { attempt: nextAttempt });
         setUploadTipHighlight('💡 Tip: Please select a photo featuring only yourself.');
         setFlowState('upload');
+        setNavigatingRecovery(false);
         break;
 
       case 'different_outfit':
-        trackEvent('different_outfit_selected', { attempt: nextAttempt });
+        trackEvent('different_outfit_selected', {}, { attempt: nextAttempt });
         startGeneration('different', nextAttempt);
         break;
 
       case 'similar_style':
-        trackEvent('similar_style_selected', { 
-          attempt: nextAttempt, 
-          style: currentOutfit?.style || 'Streetwear' 
-        });
+        trackEvent('similar_style_selected', { style: currentOutfit?.style || 'Streetwear' }, { attempt: nextAttempt });
         startGeneration('similar', nextAttempt);
         break;
 
       case 'not_my_style': {
         const style = currentOutfit?.style || 'Streetwear';
-        trackEvent('style_rejected', { style, attempt: nextAttempt });
+        trackEvent('style_rejected', { style }, { attempt: nextAttempt });
         rejectStyle(style);
         showToast("Got it — dialling back that style.");
-        setTimeout(() => {
+        if (pendingRecoveryTimerRef.current) clearTimeout(pendingRecoveryTimerRef.current);
+        pendingRecoveryTimerRef.current = setTimeout(() => {
+          pendingRecoveryTimerRef.current = null;
           startGeneration('different', nextAttempt);
         }, 1200);
         break;
@@ -342,18 +388,18 @@ export default function TryOnFlow() {
 
       case 'retry':
       default:
-        trackEvent('retry_clicked', { attempt: nextAttempt });
+        trackEvent('retry_clicked', {}, { attempt: nextAttempt });
         startGeneration('default', nextAttempt);
         break;
     }
-  }, [updateAttempt, currentOutfit, startGeneration, showToast]);
+  }, [flowState, updateAttempt, currentOutfit, startGeneration, showToast, setNavigatingRecovery]);
 
   // Handle taste feedback
   const handleTasteFeedback = useCallback((feedback: TasteFeedback) => {
     if (!currentOutfit) return;
 
     const style = currentOutfit.style;
-    trackEvent('feedback_given', { feedback, style });
+    trackEvent('feedback_given', { feedback, style }, { attempt: attemptRef.current });
 
     switch (feedback) {
       case 'more_like_this':
@@ -367,7 +413,7 @@ export default function TryOnFlow() {
         break;
 
       case 'save':
-        trackEvent('look_saved', { outfit: currentOutfit.name, style });
+        trackEvent('look_saved', { outfit: currentOutfit.name, style }, { attempt: attemptRef.current });
         showToast("Saved look to your personal session wardrobe!");
         break;
     }
@@ -375,21 +421,32 @@ export default function TryOnFlow() {
 
   // Taste Loop Continuation — Show Me Another Look
   const handleShowNextLook = useCallback(() => {
+    if (isNavigatingRecoveryRef.current || flowState === 'generating') return;
+    setNavigatingRecovery(true);
+
     const nextAttempt = attemptRef.current + 1;
     updateAttempt(nextAttempt);
-    trackEvent('show_next_look_clicked', { attempt: nextAttempt });
+    trackEvent('show_next_look_clicked', {}, { attempt: nextAttempt });
     startGeneration('similar', nextAttempt);
-  }, [updateAttempt, startGeneration]);
+  }, [flowState, updateAttempt, startGeneration, setNavigatingRecovery]);
 
   // Reset Taste Engine
   const handleResetTasteState = useCallback(() => {
     resetTaste();
     showToast("Taste preferences reset to baseline defaults.");
-    trackEvent('taste_reset', {});
+    trackEvent('taste_reset', {}, { attempt: attemptRef.current });
   }, [showToast]);
 
   // Start over completely
   const handleStartOver = useCallback(() => {
+    clearAllTimers();
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    requestIdRef.current++;
+    startNewFlow();
+
     setFlowState('upload');
     updateAttempt(1);
     setSelectedFile(null);
@@ -406,7 +463,8 @@ export default function TryOnFlow() {
     setProgress(0);
     setToastMessage(null);
     setRecommendation('');
-  }, [previewUrl, updateAttempt]);
+    isNavigatingRecoveryRef.current = false;
+  }, [clearAllTimers, previewUrl, updateAttempt]);
 
   return (
     <main className="flex-1 flex flex-col">
@@ -590,6 +648,7 @@ export default function TryOnFlow() {
                 failure={failure}
                 onAction={handleRecoveryAction}
                 currentStyle={currentOutfit?.style || 'Streetwear'}
+                isLoading={isNavigatingRecovery}
               />
 
               <button

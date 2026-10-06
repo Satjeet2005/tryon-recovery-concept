@@ -77,26 +77,23 @@ export default function UploadCard({
       </div>
 
       <div 
-        className={`relative w-full min-h-[280px] border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center transition-all cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2
+        className={`relative w-full min-h-[280px] border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center transition-all cursor-pointer outline-none focus-within:ring-2 focus-within:ring-accent focus-within:ring-offset-2
           ${isDragging ? 'border-accent bg-accent/5' : 'border-card-border bg-card hover:bg-muted/10'}
           ${error ? 'border-error bg-error-light/10' : ''}
         `}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        onClick={triggerFileInput}
-        role="button"
-        tabIndex={0}
-        aria-label="Upload your photo for try-on"
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); triggerFileInput(); } }}
       >
         <input 
+          id="photo-file-input"
           type="file"
           ref={fileInputRef}
           onChange={handleFileChange}
-          accept="image/jpeg, image/png, image/webp, image/heic, .heic, .heif"
-          className="hidden"
-          aria-hidden="true"
+          accept="image/jpeg,image/png,image/webp"
+          className="sr-only"
+          aria-invalid={Boolean(error)}
+          aria-describedby={error ? 'upload-error-msg' : undefined}
         />
 
         {isValidating ? (
@@ -123,16 +120,16 @@ export default function UploadCard({
             <button 
               type="button"
               className="px-4 py-1.5 text-xs font-medium bg-card border border-card-border rounded-md hover:bg-muted/20 text-foreground transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-              onClick={(e) => {
-                e.stopPropagation();
-                triggerFileInput();
-              }}
+              onClick={triggerFileInput}
             >
               Change photo
             </button>
           </div>
         ) : (
-          <div className="flex flex-col items-center text-center animate-fade-in">
+          <label 
+            htmlFor="photo-file-input" 
+            className="flex flex-col items-center text-center animate-fade-in cursor-pointer w-full h-full justify-center"
+          >
             <div className="w-14 h-14 mb-3 rounded-full bg-muted/20 flex items-center justify-center text-muted-foreground">
               <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
@@ -145,12 +142,17 @@ export default function UploadCard({
             <span className="inline-block px-2.5 py-1 text-[11px] rounded bg-muted/10 text-muted-foreground font-medium">
               Browse file from device
             </span>
-          </div>
+          </label>
         )}
       </div>
 
       {error && (
-        <div className="p-3.5 rounded-lg bg-error-light/40 border border-error-light text-error text-sm font-medium flex items-center gap-2.5 animate-slide-up" role="alert">
+        <div 
+          id="upload-error-msg" 
+          className="p-3.5 rounded-lg bg-error-light/40 border border-error-light text-error text-sm font-medium flex items-center gap-2.5 animate-slide-up" 
+          role="alert" 
+          aria-live="assertive"
+        >
           <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>

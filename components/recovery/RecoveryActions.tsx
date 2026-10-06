@@ -7,19 +7,25 @@ interface RecoveryActionsProps {
   failure: FailureReason;
   onAction: (action: RecoveryAction) => void;
   currentStyle: string;
+  isLoading?: boolean;
 }
 
-export function RecoveryActions({ failure, onAction, currentStyle }: RecoveryActionsProps) {
+export function RecoveryActions({ failure, onAction, currentStyle, isLoading = false }: RecoveryActionsProps) {
   const primaryAction = failure.primaryAction;
 
   const renderActionButton = (action: RecoveryAction, isPrimary: boolean) => {
+    const commonProps = {
+      disabled: isLoading,
+      'aria-busy': isLoading,
+    };
     switch (action) {
       case 'upload_brighter':
         return (
           <button 
             key={action}
             onClick={() => onAction(action)}
-            className={`flex flex-col items-center justify-center p-4 rounded-xl transition-all active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-accent ${
+            {...commonProps}
+            className={`flex flex-col items-center justify-center p-4 rounded-xl transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-accent ${
               isPrimary ? 'bg-amber-600 text-white hover:bg-amber-700 shadow-sm' : 'bg-card border border-card-border text-foreground hover:bg-muted/10'
             }`}
             aria-label="Upload a brighter photo with better lighting"
@@ -37,7 +43,8 @@ export function RecoveryActions({ failure, onAction, currentStyle }: RecoveryAct
           <button 
             key={action}
             onClick={() => onAction(action)}
-            className={`flex flex-col items-center justify-center p-4 rounded-xl transition-all active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-accent ${
+            {...commonProps}
+            className={`flex flex-col items-center justify-center p-4 rounded-xl transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-accent ${
               isPrimary ? 'bg-accent text-white hover:bg-accent-hover shadow-sm' : 'bg-card border border-card-border text-foreground hover:bg-muted/10'
             }`}
             aria-label="Upload a full-body photo including head to toe"
@@ -55,7 +62,8 @@ export function RecoveryActions({ failure, onAction, currentStyle }: RecoveryAct
           <button 
             key={action}
             onClick={() => onAction(action)}
-            className={`flex flex-col items-center justify-center p-4 rounded-xl transition-all active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-accent ${
+            {...commonProps}
+            className={`flex flex-col items-center justify-center p-4 rounded-xl transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-accent ${
               isPrimary ? 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm' : 'bg-card border border-card-border text-foreground hover:bg-muted/10'
             }`}
             aria-label="Upload a solo photo with only yourself"
@@ -73,7 +81,8 @@ export function RecoveryActions({ failure, onAction, currentStyle }: RecoveryAct
           <button 
             key={action}
             onClick={() => onAction(action)}
-            className={`flex flex-col items-center justify-center p-4 rounded-xl transition-all active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-accent ${
+            {...commonProps}
+            className={`flex flex-col items-center justify-center p-4 rounded-xl transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-accent ${
               isPrimary ? 'bg-accent text-white hover:bg-accent-hover shadow-sm' : 'bg-card border border-card-border text-foreground hover:bg-muted/10'
             }`}
             aria-label="Try a different outfit style"
@@ -91,7 +100,8 @@ export function RecoveryActions({ failure, onAction, currentStyle }: RecoveryAct
           <button 
             key={action}
             onClick={() => onAction(action)}
-            className="flex flex-col items-center justify-center p-4 bg-card border border-card-border text-foreground rounded-xl hover:bg-muted/10 transition-all active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-accent"
+            {...commonProps}
+            className="flex flex-col items-center justify-center p-4 bg-card border border-card-border text-foreground rounded-xl hover:bg-muted/10 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-accent"
             aria-label={`Try another ${currentStyle} look`}
           >
             <svg className="w-5 h-5 mb-2 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -107,7 +117,8 @@ export function RecoveryActions({ failure, onAction, currentStyle }: RecoveryAct
           <button 
             key={action}
             onClick={() => onAction(action)}
-            className="flex flex-col items-center justify-center p-4 bg-transparent border border-dashed border-card-border text-foreground rounded-xl hover:bg-muted/10 transition-all active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-accent"
+            {...commonProps}
+            className="flex flex-col items-center justify-center p-4 bg-transparent border border-dashed border-card-border text-foreground rounded-xl hover:bg-muted/10 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-accent"
             aria-label="Reject this style category"
           >
             <svg className="w-5 h-5 mb-2 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -124,7 +135,8 @@ export function RecoveryActions({ failure, onAction, currentStyle }: RecoveryAct
           <button 
             key={action}
             onClick={() => onAction('retry')}
-            className={`flex flex-col items-center justify-center p-4 rounded-xl transition-all active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-accent ${
+            {...commonProps}
+            className={`flex flex-col items-center justify-center p-4 rounded-xl transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-accent ${
               isPrimary ? 'bg-accent text-white hover:bg-accent-hover shadow-sm' : 'bg-card border border-card-border text-foreground hover:bg-muted/10'
             }`}
             aria-label="Retry generation with same photo and outfit"
