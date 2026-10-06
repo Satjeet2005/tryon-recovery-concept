@@ -5,7 +5,7 @@ import Link from 'next/link';
 import type { FlowState, FailureReason, Outfit, RecoveryAction, TasteFeedback, ImageAnalysisResult, DemoControls } from '@/lib/types';
 import { validateImage } from '@/lib/validation';
 import { trackEvent } from '@/lib/analytics';
-import { getTaste, updateTasteFromFeedback, rejectStyle, resetTaste } from '@/lib/taste-state';
+import { getTaste, updateTasteFromFeedback, rejectStyle, resetTaste, getTopStyle } from '@/lib/taste-state';
 
 import PhotoGuidance from '@/components/upload/PhotoGuidance';
 import UploadCard from '@/components/upload/UploadCard';
@@ -50,7 +50,13 @@ function buildRecommendationReason(outfit: Outfit, tasteState: ReturnType<typeof
 export default function TryOnFlow() {
   // Core flow state
   const [flowState, setFlowState] = useState<FlowState>('upload');
-  const [attempt, setAttempt] = useState(1);
+  const [, setAttempt] = useState(1);
+  const attemptRef = useRef(1);
+
+  const updateAttempt = useCallback((nextAttempt: number) => {
+    attemptRef.current = nextAttempt;
+    setAttempt(nextAttempt);
+  }, []);
   
   // Upload state
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -156,11 +162,16 @@ export default function TryOnFlow() {
     setProgress(0);
     setFlowState('upload');
     showToast('Generation cancelled.');
-    trackEvent('generation_cancelled', { attempt });
-  }, [attempt, showToast]);
+    trackEvent('generation_cancelled', { attempt: attemptRef.current });
+  }, [showToast]);
 
-  // Start generation with stale request protection & timeout
-  const startGeneration = useCallback(async (mode: 'default' | 'different' | 'similar' = 'default') => {
+  // Start generation with explicit attempt parameter, stale request protection & timeout
+  const startGeneration = useCallback(async (
+    mode: 'default' | 'different' | 'similar' = 'default',
+    explicitAttempt?: number
+  ) => {
+    const currentAttempt = explicitAttempt ?? attemptRef.current;
+    
     // Abort any existing in-flight request
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -175,7 +186,7 @@ export default function TryOnFlow() {
     setProgress(0);
     setFailure(null);
     
-    trackEvent('generation_started', { attempt, outfitMode: mode, forceMode: demoControls.forceMode });
+    trackEvent('generation_started', { attempt: currentAttempt, outfitMode: mode, forceMode: demoControls.forceMode });
 
     // Animate progress
     let currentProgress = 0;
@@ -202,19 +213,26 @@ export default function TryOnFlow() {
           requiresUpload: false,
         });
         setFlowState('failure');
-        trackEvent('generation_failed', { reason: 'TIMEOUT', attempt });
+        trackEvent('generation_failed', { reason: 'TIMEOUT', attempt: currentAttempt });
       }
     }, 12000);
 
     try {
+      const topStyle = getTopStyle().style;
+      const taste = getTaste();
+
       const response = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         signal: controller.signal,
         body: JSON.stringify({
-          attempt,
+          attempt: currentAttempt,
           outfitMode: mode,
           currentStyle: currentOutfit?.style || 'Streetwear',
+          preferredStyle: topStyle,
+          rejectedStyles: taste.rejectedStyles,
+          brightnessScore: analysisResult?.brightness.score,
+          isLandscape: analysisResult?.aspectRatio.isLandscape,
           forceMode: demoControls.forceMode,
           latencyMs: demoControls.latencyMs,
         }),
@@ -236,13 +254,13 @@ export default function TryOnFlow() {
       if (data.success) {
         setCurrentOutfit(data.outfit);
         setFlowState('success');
-        const taste = getTaste();
-        setRecommendation(buildRecommendationReason(data.outfit, taste));
-        trackEvent('try_on_success', { outfit: data.outfit.name, style: data.outfit.style, attempt });
+        const tasteState = getTaste();
+        setRecommendation(buildRecommendationReason(data.outfit, tasteState));
+        trackEvent('try_on_success', { outfit: data.outfit.name, style: data.outfit.style, attempt: currentAttempt });
       } else {
         setFailure(data.failure);
         setFlowState('failure');
-        trackEvent('generation_failed', { reason: data.failure.code, attempt });
+        trackEvent('generation_failed', { reason: data.failure.code, attempt: currentAttempt });
       }
     } catch (err: unknown) {
       if ((err as Error)?.name === 'AbortError') {
@@ -264,20 +282,20 @@ export default function TryOnFlow() {
         requiresUpload: false,
       });
       setFlowState('failure');
-      trackEvent('generation_failed', { reason: 'NETWORK_ERROR', attempt });
+      trackEvent('generation_failed', { reason: 'NETWORK_ERROR', attempt: currentAttempt });
     }
-  }, [attempt, currentOutfit, demoControls]);
+  }, [analysisResult, currentOutfit, demoControls]);
 
   // Handle continue from upload
   const handleContinue = useCallback(() => {
-    setAttempt(1);
-    startGeneration('default');
+    const targetAttempt = attemptRef.current;
+    startGeneration('default', targetAttempt);
   }, [startGeneration]);
 
   // Handle Cause-Specific Recovery Actions
   const handleRecoveryAction = useCallback((action: RecoveryAction) => {
-    const nextAttempt = attempt + 1;
-    setAttempt(nextAttempt);
+    const nextAttempt = attemptRef.current + 1;
+    updateAttempt(nextAttempt);
 
     switch (action) {
       case 'upload_brighter':
@@ -300,7 +318,7 @@ export default function TryOnFlow() {
 
       case 'different_outfit':
         trackEvent('different_outfit_selected', { attempt: nextAttempt });
-        startGeneration('different');
+        startGeneration('different', nextAttempt);
         break;
 
       case 'similar_style':
@@ -308,7 +326,7 @@ export default function TryOnFlow() {
           attempt: nextAttempt, 
           style: currentOutfit?.style || 'Streetwear' 
         });
-        startGeneration('similar');
+        startGeneration('similar', nextAttempt);
         break;
 
       case 'not_my_style': {
@@ -317,7 +335,7 @@ export default function TryOnFlow() {
         rejectStyle(style);
         showToast("Got it — dialling back that style.");
         setTimeout(() => {
-          startGeneration('different');
+          startGeneration('different', nextAttempt);
         }, 1200);
         break;
       }
@@ -325,10 +343,10 @@ export default function TryOnFlow() {
       case 'retry':
       default:
         trackEvent('retry_clicked', { attempt: nextAttempt });
-        startGeneration('default');
+        startGeneration('default', nextAttempt);
         break;
     }
-  }, [attempt, currentOutfit, startGeneration, showToast]);
+  }, [updateAttempt, currentOutfit, startGeneration, showToast]);
 
   // Handle taste feedback
   const handleTasteFeedback = useCallback((feedback: TasteFeedback) => {
@@ -357,11 +375,11 @@ export default function TryOnFlow() {
 
   // Taste Loop Continuation — Show Me Another Look
   const handleShowNextLook = useCallback(() => {
-    const nextAttempt = attempt + 1;
-    setAttempt(nextAttempt);
+    const nextAttempt = attemptRef.current + 1;
+    updateAttempt(nextAttempt);
     trackEvent('show_next_look_clicked', { attempt: nextAttempt });
-    startGeneration('similar');
-  }, [attempt, startGeneration]);
+    startGeneration('similar', nextAttempt);
+  }, [updateAttempt, startGeneration]);
 
   // Reset Taste Engine
   const handleResetTasteState = useCallback(() => {
@@ -373,7 +391,7 @@ export default function TryOnFlow() {
   // Start over completely
   const handleStartOver = useCallback(() => {
     setFlowState('upload');
-    setAttempt(1);
+    updateAttempt(1);
     setSelectedFile(null);
     if (previewUrl) {
       try { URL.revokeObjectURL(previewUrl); } catch { /* ignore */ }
@@ -388,7 +406,7 @@ export default function TryOnFlow() {
     setProgress(0);
     setToastMessage(null);
     setRecommendation('');
-  }, [previewUrl]);
+  }, [previewUrl, updateAttempt]);
 
   return (
     <main className="flex-1 flex flex-col">

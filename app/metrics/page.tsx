@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { DEMO_METRICS } from '@/lib/demo-data';
 import { getEvents, subscribe, clearEvents } from '@/lib/analytics';
+import { calculateSessionFunnel } from '@/lib/metrics';
 import { AnalyticsEvent } from '@/lib/types';
 import { MetricCard } from '@/components/metrics/MetricCard';
 
@@ -22,6 +23,8 @@ export default function MetricsPage() {
     clearEvents();
   };
 
+  const liveFunnel = useMemo(() => calculateSessionFunnel(events), [events]);
+
   return (
     <div className="min-h-screen bg-background text-foreground pb-20">
       <div className="max-w-4xl mx-auto px-4 py-8 md:py-12 space-y-10">
@@ -34,11 +37,11 @@ export default function MetricsPage() {
           
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <h1 className="text-3xl md:text-4xl font-bold tracking-tight mb-1">Prototype Metrics & Hypothesis</h1>
+              <h1 className="text-3xl md:text-4xl font-bold tracking-tight mb-1">Prototype Metrics &amp; Hypothesis</h1>
               <p className="text-sm text-muted-foreground">Measuring the product impact of cause-specific try-on recovery</p>
             </div>
             <div className="inline-flex items-center px-3 py-1.5 rounded-full bg-amber-50 text-amber-900 text-xs font-semibold border border-amber-200 shrink-0 self-start sm:self-auto">
-              <span>📊 Dataset: Illustrative Prototype Baseline</span>
+              <span>📊 Dataset: Illustrative Target Model &amp; Live Telemetry</span>
             </div>
           </div>
         </header>
@@ -46,9 +49,9 @@ export default function MetricsPage() {
         {/* Section 1: Product Hypothesis Definition */}
         <section className="bg-card border border-card-border rounded-2xl p-6 md:p-8 shadow-sm space-y-6 animate-slide-up">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold text-foreground">Core Product Hypothesis</h2>
+            <h2 className="text-xl font-bold text-foreground">{DEMO_METRICS.hypothesisComparison.title}</h2>
             <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-info-light text-info border border-info/30">
-              A/B Test Design
+              Target Outcomes to Validate
             </span>
           </div>
 
@@ -62,8 +65,8 @@ export default function MetricsPage() {
               <thead className="bg-muted/20 text-muted-foreground font-semibold border-b border-card-border">
                 <tr>
                   <th className="p-3">Dimension</th>
-                  <th className="p-3">Control (Generic Retry)</th>
-                  <th className="p-3 text-accent font-bold">Variant (Diagnosed Recovery)</th>
+                  <th className="p-3">{DEMO_METRICS.hypothesisComparison.genericRetry.label}</th>
+                  <th className="p-3 text-accent font-bold">{DEMO_METRICS.hypothesisComparison.diagnosedRecovery.label}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-card-border/60">
@@ -85,18 +88,57 @@ export default function MetricsPage() {
               </tbody>
             </table>
           </div>
-          <p className="text-[11px] text-muted-foreground italic">Note: Table represents the target illustrative hypothesis model for product evaluation.</p>
+          <p className="text-[11px] text-muted-foreground italic">Note: {DEMO_METRICS.hypothesisComparison.note}.</p>
         </section>
 
-        {/* Section 2: Primary Baseline Metrics with Explicit Denominators */}
+        {/* Section 2: Real-time Live Session Funnel Summary */}
         <section className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-2xl font-bold">Primary Metrics</h2>
-              <p className="text-xs text-muted-foreground">Every metric explicitly states its calculation denominator</p>
+              <h2 className="text-2xl font-bold">Live Browser Session Funnel</h2>
+              <p className="text-xs text-muted-foreground">Computed in real-time from your current browser session telemetry ({liveFunnel.totalEvents} events recorded)</p>
+            </div>
+            <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-semibold flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              Live Telemetry
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <MetricCard 
+              label="Uploads Started" 
+              value={String(liveFunnel.uploadsStarted)} 
+              sublabel="Total image uploads initiated in this session" 
+            />
+            <MetricCard 
+              label="Generation Attempts" 
+              value={String(liveFunnel.generationStarts)} 
+              sublabel={`${liveFunnel.secondAttemptStarts} second attempt(s)`} 
+            />
+            <MetricCard 
+              label="2nd-Try Re-engagement" 
+              value={liveFunnel.secondAttemptRate} 
+              sublabel="2nd attempts / 1st attempt failures" 
+              highlight={true}
+            />
+            <MetricCard 
+              label="Recovery Success Rate" 
+              value={liveFunnel.recoveryRate} 
+              sublabel="Successful recoveries / 1st attempt failures" 
+              highlight={true}
+            />
+          </div>
+        </section>
+
+        {/* Section 3: Primary Baseline Metrics with Explicit Denominators */}
+        <section className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-bold">Illustrative Baseline Dataset</h2>
+              <p className="text-xs text-muted-foreground">Seeded baseline dataset model with explicit calculation denominators</p>
             </div>
             <span className="px-2.5 py-0.5 rounded-full bg-muted/20 text-muted-foreground text-xs font-semibold">
-              Illustrative Baseline (100 Sessions)
+              Baseline Target (100 Sessions)
             </span>
           </div>
 
@@ -120,7 +162,7 @@ export default function MetricsPage() {
           </div>
         </section>
 
-        {/* Section 3: Failure Reasons & Recovery Breakdown */}
+        {/* Section 4: Failure Reasons & Recovery Breakdown */}
         <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
           
           {/* Failure Reasons Breakdown */}
@@ -166,13 +208,13 @@ export default function MetricsPage() {
           </div>
         </section>
 
-        {/* Section 4: Live Session Telemetry Log */}
+        {/* Section 5: Live Session Telemetry Log */}
         <section className="bg-card border border-card-border rounded-2xl overflow-hidden shadow-sm animate-slide-up">
           <div className="p-6 md:p-8 border-b border-card-border flex items-center justify-between gap-4">
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                <h2 className="text-xl font-bold text-foreground">Live Browser Session Telemetry</h2>
+                <h2 className="text-xl font-bold text-foreground">Live Browser Session Telemetry Log</h2>
               </div>
               <p className="text-muted-foreground text-xs">Real-time event stream captured during your current browser session</p>
             </div>
@@ -227,7 +269,7 @@ export default function MetricsPage() {
 
         {/* Footer */}
         <footer className="pt-8 border-t border-card-border text-center text-xs text-muted-foreground space-y-1">
-          <p className="font-medium">Illustrative prototype dataset &middot; Not production analytics</p>
+          <p className="font-medium">Illustrative prototype target model &middot; Live session browser telemetry</p>
           <p>Independent Product Concept &middot; Satjeet Singh</p>
         </footer>
       </div>

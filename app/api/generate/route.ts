@@ -10,7 +10,11 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({}));
   const attempt = body.attempt || 1;
   const outfitMode = body.outfitMode || 'default';
-  const currentStyle = body.currentStyle || 'Streetwear';
+  const currentStyle = (body.currentStyle || 'Streetwear').toLowerCase();
+  const preferredStyle = (body.preferredStyle || 'streetwear').toLowerCase();
+  const rejectedStyles: string[] = Array.isArray(body.rejectedStyles) 
+    ? body.rejectedStyles.map((s: string) => String(s).toLowerCase()) 
+    : [];
   const forceMode = body.forceMode || 'auto';
   const customLatency = body.latencyMs;
 
@@ -53,9 +57,18 @@ export async function POST(request: NextRequest) {
     failureCode = 'TIMEOUT';
   }
 
-  // Attempt 1 default failure code in auto mode
+  // Attempt 1 default failure code in auto mode derived from client-side image heuristics
   if (!shouldSucceed && !failureCode) {
-    failureCode = 'LOW_LIGHT';
+    const brightnessScore = typeof body.brightnessScore === 'number' ? body.brightnessScore : 128;
+    const isLandscape = Boolean(body.isLandscape);
+
+    if (brightnessScore < 55) {
+      failureCode = 'LOW_LIGHT';
+    } else if (isLandscape) {
+      failureCode = 'FULL_BODY_NOT_VISIBLE';
+    } else {
+      failureCode = 'OUTFIT_FIT_FAILURE';
+    }
   }
 
   if (!shouldSucceed && failureCode) {
@@ -69,27 +82,41 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  let selectedOutfit = DEMO_OUTFITS[0];
+  // Filter outfits by rejected styles
+  const validOutfits = DEMO_OUTFITS.filter(o => !rejectedStyles.includes(o.style.toLowerCase()));
+  const pool = validOutfits.length > 0 ? validOutfits : DEMO_OUTFITS;
 
-  if (outfitMode === 'different') {
-    const differentOutfits = DEMO_OUTFITS.filter(o => o.style !== currentStyle);
-    if (differentOutfits.length > 0) {
-      counter++;
-      selectedOutfit = differentOutfits[counter % differentOutfits.length];
-    }
-  } else if (outfitMode === 'similar') {
-    const similarOutfits = DEMO_OUTFITS.filter(o => o.style === currentStyle);
-    if (similarOutfits.length > 0) {
-      counter++;
-      selectedOutfit = similarOutfits[counter % similarOutfits.length];
+  let candidates = pool;
+
+  if (outfitMode === 'similar') {
+    // Prefer outfits matching preferredStyle, then currentStyle
+    const preferredMatches = pool.filter(o => o.style.toLowerCase() === preferredStyle);
+    if (preferredMatches.length > 0) {
+      candidates = preferredMatches;
     } else {
-      counter++;
-      selectedOutfit = DEMO_OUTFITS[counter % DEMO_OUTFITS.length];
+      const currentMatches = pool.filter(o => o.style.toLowerCase() === currentStyle);
+      if (currentMatches.length > 0) {
+        candidates = currentMatches;
+      }
+    }
+  } else if (outfitMode === 'different') {
+    // Exclude current style
+    const differentMatches = pool.filter(o => o.style.toLowerCase() !== currentStyle);
+    if (differentMatches.length > 0) {
+      // If preferredStyle is different from currentStyle, prefer that
+      const preferredDifferent = differentMatches.filter(o => o.style.toLowerCase() === preferredStyle);
+      candidates = preferredDifferent.length > 0 ? preferredDifferent : differentMatches;
     }
   } else {
-    counter++;
-    selectedOutfit = DEMO_OUTFITS[counter % DEMO_OUTFITS.length];
+    // Default mode: prefer preferredStyle if valid matches exist
+    const preferredMatches = pool.filter(o => o.style.toLowerCase() === preferredStyle);
+    if (preferredMatches.length > 0) {
+      candidates = preferredMatches;
+    }
   }
+
+  counter++;
+  const selectedOutfit = candidates[counter % candidates.length];
 
   return Response.json({
     success: true,

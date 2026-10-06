@@ -109,9 +109,8 @@ export const DEMO_OUTFITS: Outfit[] = [
   },
 ];
 
-// Demo metric data - clearly illustrative baseline dataset, not real production tracking
 export const DEMO_METRICS = {
-  datasetName: 'Illustrative Baseline Dataset (100 Simulated Sessions)',
+  datasetName: 'Illustrative Target Baseline (100 Simulated Sessions)',
   funnel: {
     totalSessions: 100, // Total sessions initiating try-on
     firstTryOnSuccess: 72, // 72 of 100 sessions succeeded on 1st try (Control Group)
@@ -139,18 +138,19 @@ export const DEMO_METRICS = {
     saved: 12, // 18.5%
   },
   hypothesisComparison: {
-    title: 'Product Hypothesis Comparison (Illustrative Baseline)',
+    title: 'Product Hypothesis — Target Outcomes to Validate',
+    note: 'Illustrative target model — not measured production A/B test data',
     genericRetry: {
-      label: 'Generic Retry (Control)',
-      secondTryRate: '45%', // 45% of users retry when given generic 'Try Again'
-      recoverySuccessRate: '32%', // 32% of retries succeed without guidance
-      userIntentCaptured: '0%', // No intent or preference signals captured
+      label: 'Control Baseline (Generic Retry)',
+      secondTryRate: 'Target Baseline: ~45%',
+      recoverySuccessRate: 'Target Baseline: ~32%',
+      userIntentCaptured: '0% (No intent captured)',
     },
     diagnosedRecovery: {
-      label: 'Diagnosed Recovery (Variant)',
-      secondTryRate: '85.7%', // 24 of 28 users re-engage with cause-specific guidance
-      recoverySuccessRate: '67.9%', // 19 of 28 users recover to successful try-on
-      userIntentCaptured: '78.5%', // Captured specific input/taste preferences
+      label: 'Variant Target (Diagnosed Recovery)',
+      secondTryRate: 'Target Goal: >80%',
+      recoverySuccessRate: 'Target Goal: >65%',
+      userIntentCaptured: 'Target Goal: >75%',
     },
   },
 };
